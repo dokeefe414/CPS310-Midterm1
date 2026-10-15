@@ -33,16 +33,16 @@ The demonstration starts two independent simulations from identical agent, envir
 ## Design diagram
 
 ```text
-       SimulationPlayground.step()
-          |     |       |
-        Human ArmedHuman Zombie
-          |     |       |
-         Agent movement / combat
-                  |
-          StateStorage interface
-             /          \
-    MemoryStorage    JSONFileStorage
-      dictionary       JSON file
+                SimulationPlayground
+                /                 \\
+      coordinates agent         load() / save()
+          behavior                   |
+             |                 StateStorage (ABC)
+           Agent                /             \\
+         /   |   \\       MemoryStorage    JSONFileStorage
+      Human  |  Zombie      (RAM)          (disk)
+         |   |
+     ArmedHuman
 ```
 
 The `SimulationPlayground` class depends on **only** the `StateStorage` abstraction through `load()` and `save(state)`. The constructor accepts a backend, rather than constructing one internally.
@@ -99,12 +99,12 @@ Agent records are reconstructed as class instances each tick. The game rules ope
 5. **Single responsibility:** agents handle behavior, the playground coordinates ticks, and storage classes handle saving/loading.
 6. **Extensibility:** a third backend (for example, a SQLite or PostgreSQL state repository) can implement the interface without rewriting `step()`.
 
-To switch, only the setup changes:
+To switch, only the setup changes (with `from pathlib import Path`):
 
 ```python
 game = SimulationPlayground(MemoryStorage(initial_state()))
 # OR
-game = SimulationPlayground(JSONFileStorage("game_state.json", initial_state()))
+game = SimulationPlayground(JSONFileStorage(Path("game_state.json"), initial_state()))
 ```
 
 Both execute `game.step()` unchanged.
@@ -115,7 +115,7 @@ Run `python -m unittest -v`. Tests cover:
 - 20 identical ticks across memory and JSON
 - copy isolation for in-memory snapshots
 - persistence of agents, environment, and runtime in the JSON file
-- preservation of the three agent types
+- preservation of the three agent types and first-tick execution\n- armed-human shooting and cooldown\n- zombie bite and conversion of a human\n- isolation between independent simulation instances
 - execution of the complete comparison demo
 
 The main demo also checks `memory_state == file_state == memory.load() == file_storage.load()` after each step. Matching **entire snapshots** is stronger than comparing only population counts.

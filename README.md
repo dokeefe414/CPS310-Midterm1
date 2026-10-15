@@ -2,11 +2,10 @@
 
 **Student:** Daniel O'Keefe  
 **Course:** CPS 310, Fall 2026  
-**Instructor:** Fanchao  
-**Due:** October 14, 2026, 11:59 PM EST  
+**Instructor:** Dr. Fanchao Meng  
 **Work:** Individual midterm adaptation of the group project
 
-## What this submission does
+## Overview
 
 This midterm is based on our existing group repository, [CPS310-Zombie-Game](https://github.com/dokeefe414/CPS310-Zombie-Game), especially its `Zombie_Game.py` implementation. It adapts the **actual class names, entity types, and gameplay mechanics** to show how simulation logic can stay independent of the storage technology. It is a **focused adaptation**, not a verbatim copy of the entire original GUI, multiprocessing, or PostgreSQL application.
 

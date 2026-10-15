@@ -1,20 +1,47 @@
 {
-  "agents": {
-    "zombie": {
-      "id": "z1",
-      "x": 5
-    },
-    "human": {
+  "agents": [
+    {
       "id": "h1",
-      "x": 5,
-      "health": 0
+      "type": "Human",
+      "x": 15,
+      "y": 15,
+      "speed": 2.4,
+      "health": 100
+    },
+    {
+      "id": "a1",
+      "type": "ArmedHuman",
+      "x": 40,
+      "y": 40,
+      "speed": 2.1,
+      "health": 100,
+      "cooldown": 0
+    },
+    {
+      "id": "z1",
+      "type": "Zombie",
+      "x": 18,
+      "y": 15,
+      "speed": 2.1,
+      "health": 120
+    },
+    {
+      "id": "z2",
+      "type": "Zombie",
+      "x": 42,
+      "y": 40,
+      "speed": 2.1,
+      "health": 120
     }
-  },
+  ],
   "environment": {
-    "width": 10,
-    "terrain": "street"
+    "width": 1200,
+    "height": 1200,
+    "terrain": "square playground"
   },
   "runtime": {
-    "tick": 8
+    "tick": 0,
+    "seed": 310,
+    "next_id": 3
   }
 }

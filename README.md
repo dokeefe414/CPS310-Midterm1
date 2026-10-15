@@ -1,160 +1,143 @@
-# CPS 310 — Midterm #1: Storage-Independent Zombie Simulation
+# CPS 310 — Midterm #1: Decoupling State Storage from the Zombie Game
 
 **Student:** Daniel O'Keefe  
-**Course:** CPS 310 — Fall 2026  
-**Instructor:** Dr. Fanchao Meng
+**Course:** CPS 310, Fall 2026  
+**Instructor:** Fanchao  
+**Due:** October 14, 2026, 11:59 PM EST  
+**Work:** Individual midterm adaptation of the group project
 
-## Assignment and objective
+## What this submission does
 
-The assignment asks for a concrete object-oriented design that separates a Zombie Game Simulation's rules from the way the live state of its agents, environment, and runtime is stored. At least two storage implementations must demonstrate that the simulation code does not change when storage changes.
+This midterm is based on our existing group repository, [CPS310-Zombie-Game](https://github.com/dokeefe414/CPS310-Zombie-Game), especially its `Zombie_Game.py` implementation. It adapts the **actual class names, entity types, and gameplay mechanics** to show how simulation logic can stay independent of the storage technology. It is a **focused adaptation**, not a verbatim copy of the entire original GUI, multiprocessing, or PostgreSQL application.
 
-This submission implements an **abstract storage interface**, an **in-memory dictionary backend**, and a **JSON-file backend**. Two independent simulations run side by side with identical starting conditions. Each uses the same `ZombieSimulation` class and executes the same `step()` method. The program checks their complete states for equality after every tick.
+The original project includes `Agent`, `Human`, `ArmedHuman`, `Zombie`, and `SimulationPlayground`, with movement, fleeing, armed attacks, zombie starvation and biting, conversion, and a 1200x1200 arena. The midterm retains those core concepts while introducing a storage interface and two interchangeable implementations.
 
-## Repository contents
+## Files
 
-| File | Purpose |
-| --- | --- |
-| `midterm1.py` | All OOP classes, game rules, and the executable demonstration |
-| `test_midterm1.py` | Automated verification of both backends and state isolation |
-| `game_state.json` | Example output snapshot produced by the file backend |
-| `README.md` | Design, justification, instructions, and explanation |
+- **midterm1.py** — complete OOP implementation, storage backends, and two-simulation demonstration
+- **test_midterm1.py** — automated tests for equivalence, isolation, and persistence
+- **game_state.json** — example JSON snapshot; running the demo regenerates it
+- **README.md** — design explanation and defense notes
 
-## Running the project
+## Run
 
-Requirements: **Python 3.10+**; only Python standard-library modules are used. No installation or database server is needed.
-
-From the repository directory:
+Python 3.10+ is required. No external packages, GUI, or PostgreSQL are required.
 
 ```bash
 python midterm1.py
 python -m unittest -v
 ```
 
-On some computers the command may be `python3` or `py`.
+The demonstration starts two independent simulations from identical agent, environment, and runtime states. It advances each once per loop and asserts that their complete states match after every tick. **Side by side** means sequential lockstep comparison, not parallel threads and not writing to two backends from one simulation instance.
 
-The first command runs two independent simulations in lockstep and prints a table of each tick's zombie position, human health, and a YES indicator when the complete state snapshots match. It also writes `game_state.json`. The second command runs three automated tests.
-
-## Object-oriented architecture
+## Design diagram
 
 ```text
-                     ZombieSimulation
-                       (game rules)
-                             |
-                  calls load() and save()
-                             |
-                      StateStorage
-                    (abstract interface)
-                       /           \
-                      /             \
-              MemoryStorage     JSONFileStorage
-              (RAM dictionary)   (JSON on disk)
+       SimulationPlayground.step()
+          |     |       |
+        Human ArmedHuman Zombie
+          |     |       |
+         Agent movement / combat
+                  |
+          StateStorage interface
+             /          \
+    MemoryStorage    JSONFileStorage
+      dictionary       JSON file
 ```
 
-**StateStorage (abstraction).** This abstract base class defines two operations: `load() -> dict` and `save(state: dict) -> None`. Any storage solution implementing the contract can be passed to `ZombieSimulation`.
+The `SimulationPlayground` class depends on **only** the `StateStorage` abstraction through `load()` and `save(state)`. The constructor accepts a backend, rather than constructing one internally.
 
-**MemoryStorage (implementation 1).** Keeps the current snapshot in a private Python dictionary in RAM. It deep-copies data when saving and loading so outside code cannot accidentally mutate the stored snapshot. This backend is fast and simple, but state is lost when the process ends.
+## Detailed classes and responsibilities
 
-**JSONFileStorage (implementation 2).** Serializes a complete snapshot into a human-readable JSON file. `load()` deserializes that file into the same dictionary structure that `MemoryStorage` returns. A temporary file and atomic replacement are used during saving to reduce the chance of exposing a partially written snapshot. The file remains on disk after the program exits.
+**StateStorage (abstract base class):** defines `load()` and `save()`. It is the contract between simulation and persistence.
 
-**ZombieSimulation (simulation layer).** The constructor receives a `StateStorage` object. Each `step()` loads the current state, increments the runtime tick, moves the zombie one cell toward the human, applies 25 damage when they meet, then saves the updated state. This class never opens files, serializes JSON, or accesses a storage backend's internal fields.
+**MemoryStorage:** stores a deep-copied dictionary in RAM. This is fast and needs no file, but is temporary.
 
-**Dependency injection.** The chosen backend is passed into `ZombieSimulation(storage)` when a simulation object is constructed. The simulation does not create or select the storage implementation itself.
+**JSONFileStorage:** serializes/deserializes the same dictionary to/from a JSON file, preserving state on disk. It writes through a temporary file then replaces the destination to avoid partially written snapshots.
 
-## Complete state model
+**Agent:** abstract base class, adapted from the group's original code. Provides position, Euclidean distance, bounded movement, and damage.
 
-A single snapshot contains all three categories required by the prompt:
+**Human:** flees nearby zombies (perception radius 25) or wanders.
 
-```json
-{
-  "agents": {
-    "zombie": {"id": "z1", "x": 0},
-    "human": {"id": "h1", "x": 5, "health": 100}
-  },
-  "environment": {"width": 10, "terrain": "street"},
-  "runtime": {"tick": 0}
-}
+**ArmedHuman:** inherits from `Human`, attacks zombies within range 35 for 45 damage with a six-tick cooldown, and flees.
+
+**Zombie:** chases humans within radius 120, loses 0.05 health per tick, bites within range 3.2 for 40 damage, and converts a killed human into a zombie.
+
+**SimulationPlayground:** rebuilds live agent objects from the saved snapshot at the start of each tick, updates the agents, removes dead agents, adds newly converted zombies, increments the runtime counter, and saves the complete updated snapshot. It contains no JSON or dictionary persistence implementation.
+
+## What was adapted from the group project
+
+| Feature | Original Zombie Game | Midterm adaptation |
+| --- | --- | --- |
+| Agent hierarchy | Agent, Human, ArmedHuman, Zombie | Same conceptual hierarchy |
+| Environment | 1200 x 1200 playground | Same default dimensions |
+| Human movement | flee or wander | flee or wander |
+| Armed humans | attack and cooldown | attack and cooldown |
+| Zombies | chase, starve, bite, convert | same simplified rules |
+| Nearest-agent search | spatial grid and optional multiprocessing | simple linear search for clarity |
+| User interface | Tkinter visualization | console comparison |
+| Database | PostgreSQL for run/history persistence | JSON state snapshots and in-memory snapshots |
+| Live state | Python objects held by playground | serialized snapshots loaded through storage abstraction |
+
+This distinction matters: the original PostgreSQL manager is used for recording run/history information, while this midterm specifically demonstrates storage of **live agent, environment, and runtime state**. They are related but not identical responsibilities.
+
+## State structure
+
+Each saved snapshot has:
+- **agents:** a list of dictionaries with IDs, type, x/y coordinates, speed, health, and cooldown where applicable
+- **environment:** width, height, and terrain label
+- **runtime:** tick count, random seed, and next agent ID
+
+Agent records are reconstructed as class instances each tick. The game rules operate on `Agent` subclasses; the storage classes operate only on generic state dictionaries.
+
+## Why the design decouples the layers
+
+1. **Abstraction:** `StateStorage` hides whether state lives in RAM or JSON.
+2. **Polymorphism:** both backends implement the same methods.
+3. **Dependency injection:** the backend is passed to `SimulationPlayground` at construction.
+4. **Dependency inversion:** game rules rely on the interface rather than a specific backend.
+5. **Single responsibility:** agents handle behavior, the playground coordinates ticks, and storage classes handle saving/loading.
+6. **Extensibility:** a third backend (for example, a SQLite or PostgreSQL state repository) can implement the interface without rewriting `step()`.
+
+To switch, only the setup changes:
+
+```python
+game = SimulationPlayground(MemoryStorage(initial_state()))
+# OR
+game = SimulationPlayground(JSONFileStorage("game_state.json", initial_state()))
 ```
 
-- **Agents:** zombie position and identity; human position, identity, and health.
-- **Environment:** map width and terrain type.
-- **Runtime:** current simulation tick.
+Both execute `game.step()` unchanged.
 
-The same snapshot structure is used by both storage solutions. Neither storage class needs to know the movement or attack rules.
+## Testing and demonstration
 
-## Why this decouples storage from simulation
+Run `python -m unittest -v`. Tests cover:
+- 20 identical ticks across memory and JSON
+- copy isolation for in-memory snapshots
+- persistence of agents, environment, and runtime in the JSON file
+- preservation of the three agent types
+- execution of the complete comparison demo
 
-The central dependency is `ZombieSimulation -> StateStorage`, **not** `ZombieSimulation -> MemoryStorage` or `ZombieSimulation -> JSONFileStorage`.
+The main demo also checks `memory_state == file_state == memory.load() == file_storage.load()` after each step. Matching **entire snapshots** is stronger than comparing only population counts.
 
-1. **Abstraction:** `StateStorage` exposes the operations needed by the simulation while hiding implementation details.
-2. **Polymorphism:** both concrete storage classes can be used through the same interface.
-3. **Dependency inversion:** high-level simulation logic depends on the storage abstraction rather than a concrete storage mechanism.
-4. **Single responsibility:** game rules belong to the simulation class; persistence and retrieval belong to the storage classes.
-5. **Open for extension:** a future `SQLiteStorage` could implement `load()` and `save()` without changing `ZombieSimulation.step()`.
+## Important limitations and engineering decisions
 
-Changing storage means constructing `ZombieSimulation(MemoryStorage(...))` or `ZombieSimulation(JSONFileStorage(...))`. No changes are required in the simulation class. This is the exact separation requested by the assignment.
+This is a small, deterministic **demonstration**, not the entire 10,000-agent group game. It deliberately replaces spatial-grid/multiprocessing searches with linear scans to keep the storage architecture easy to inspect. It does not require Tkinter or a running database. A deterministic random seed derived from the tick gives both independent simulations the same random movement. The entire state is loaded and saved on each tick, which is simple but inefficient for very large populations. The JSON backend initializes from the supplied initial state each time it is constructed; it does not resume a previous saved run automatically. Concurrent writes and malformed-file recovery are outside this midterm's scope.
 
-## Side-by-side demonstration
+## Questions to defend in class
 
-`run_demo()` constructs **two separate storage objects** and **two separate simulation objects**, both initialized with the same state. They are advanced one after the other in each loop iteration. This is *lockstep comparison*, not true parallel threads, and not one simulation writing to both storage backends.
+**Why not access a JSON file directly inside the simulation?** That would mix game rules with persistence. Switching to RAM or a DBMS would force changes to the simulation.
 
-At each tick, the program checks:
-- The returned snapshots from both simulations are identical.
-- The returned snapshot matches what each backend actually stores.
+**How does the design relate to our actual Zombie Game?** It retains the agent inheritance structure, the three concrete agent types, the arena, movement, combat, and conversion concepts from `Zombie_Game.py`; it simplifies the rendering and parallel search infrastructure.
 
-Expected state progression for eight ticks:
+**Where is state stored?** `MemoryStorage` keeps a snapshot in a Python dictionary. `JSONFileStorage` keeps the same snapshot on disk.
 
-| Tick | Zombie x | Human health |
-| ---: | ---: | ---: |
-| 1 | 1 | 100 |
-| 2 | 2 | 100 |
-| 3 | 3 | 100 |
-| 4 | 4 | 100 |
-| 5 | 5 | 75 |
-| 6 | 5 | 50 |
-| 7 | 5 | 25 |
-| 8 | 5 | 0 |
+**How can you prove the simulation is independent of storage?** The exact same `SimulationPlayground` class runs against both backends, with assertions checking identical complete states.
 
-The full state equality assertion covers the environment and runtime too, not just the displayed fields.
+**Is the group's PostgreSQL history logging the same thing?** No. The original DB logging records run metadata and population history; this midterm persists the complete *live* state for the next simulation tick.
 
-## Tests and how to interpret them
-
-Run `python -m unittest -v`.
-
-1. **Memory copy isolation:** changing a loaded dictionary without saving does not mutate the backend's stored state.
-2. **Backend equivalence:** ten steps through two independent simulations produce identical full snapshots and end at tick 10 with human health 0.
-3. **File persistence:** the file backend's saved state can be read back from the JSON document after a simulation step.
-
-All tests should report `ok`. A passing test does not prove that all possible storage systems are correct, but it provides concrete evidence that these two implementations obey the shared contract for the demonstrated operations.
-
-## Design tradeoffs and limitations
-
-- This is a deliberately small, deterministic one-dimensional zombie simulation designed to isolate the storage architecture rather than recreate the entire group game.
-- The whole state is loaded and saved every tick. For a large world, smaller incremental operations might be more efficient.
-- JSON is human-readable and persistent, but file I/O is slower than memory access.
-- `JSONFileStorage` initializes its file from the provided starting state when constructed; it does **not** automatically resume an existing run. The existing JSON file can still be inspected or loaded before a new initialization.
-- No concurrency control, schema migration, distributed transactions, or recovery from invalid JSON is implemented.
-- This example does not require a DBMS; a database backend could be added later using the same interface.
-
-## Questions to prepare for when defending the design
-
-**Q: Why not have ZombieSimulation write directly to a JSON file?**  
-A: Then the simulation would depend on JSON and file operations. Switching to a dictionary or database would require modifying game logic.
-
-**Q: How do you switch storage?**  
-A: Pass a different implementation of `StateStorage` into the constructor. The `step()` method stays unchanged.
-
-**Q: Why use an abstract base class?**  
-A: It makes the required `load` and `save` operations explicit and ensures concrete subclasses implement them.
-
-**Q: What does running both simultaneously mean here?**  
-A: Two independent simulations are advanced in lockstep and their full states are compared after every tick. They are not separate operating-system threads.
-
-**Q: Where are the live states?**  
-A: They are complete snapshots containing agents, environment, and runtime. MemoryStorage keeps one in RAM; JSONFileStorage stores one on disk.
-
-**Q: How would you add a database?**  
-A: Implement a third `StateStorage` subclass with the same `load` and `save` signatures and pass it to `ZombieSimulation`.
+**What would change to add a database backend?** Only a new `StateStorage` implementation and the setup code that constructs it; the simulation rules stay unchanged.
 
 ## Conclusion
 
-The implementation demonstrates that the **simulation rules remain unchanged** when switching between in-memory and file-based state storage. The interface, constructor injection, and backend-equivalence tests provide a concrete OOP solution to the midterm's decoupling requirement.
+This design uses the existing Zombie Game's OOP concepts to demonstrate a concrete separation between simulation and state storage. Two interchangeable backends and a side-by-side equivalence test make that separation visible and testable.

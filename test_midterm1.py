@@ -36,12 +36,48 @@ class MidtermTests(unittest.TestCase):
             self.assertIn("environment", state)
             self.assertIn("agents", state)
 
-    def test_agent_types_and_combat(self):
+    def test_agent_types_and_first_tick(self):
         state = initial_state()
         self.assertEqual({a["type"] for a in state["agents"]}, {"Human", "ArmedHuman", "Zombie"})
         store = MemoryStorage(state)
         SimulationPlayground(store).step()
         self.assertEqual(store.load()["runtime"]["tick"], 1)
+
+    def test_armed_human_shoots_and_sets_cooldown(self):
+        state = initial_state()
+        # Isolate an armed human and a nearby zombie.
+        state["agents"] = [
+            {"id": "a1", "type": "ArmedHuman", "x": 10.0, "y": 10.0,
+             "speed": 2.1, "health": 100.0, "cooldown": 0},
+            {"id": "z1", "type": "Zombie", "x": 20.0, "y": 10.0,
+             "speed": 2.1, "health": 120.0},
+        ]
+        result = SimulationPlayground(MemoryStorage(state)).step()
+        armed = next(a for a in result["agents"] if a["type"] == "ArmedHuman")
+        zombie = next(a for a in result["agents"] if a["type"] == "Zombie")
+        self.assertEqual(armed["cooldown"], 6)
+        self.assertLess(zombie["health"], 120.0)
+
+    def test_zombie_bite_and_conversion(self):
+        state = initial_state()
+        state["agents"] = [
+            {"id": "h1", "type": "Human", "x": 10.0, "y": 10.0,
+             "speed": 0.0, "health": 40.0},
+            {"id": "z1", "type": "Zombie", "x": 11.0, "y": 10.0,
+             "speed": 2.1, "health": 120.0},
+        ]
+        result = SimulationPlayground(MemoryStorage(state)).step()
+        self.assertEqual(len(result["agents"]), 2)
+        self.assertTrue(all(a["type"] == "Zombie" for a in result["agents"]))
+        self.assertEqual(result["runtime"]["next_id"], 4)
+
+    def test_state_isolation_between_simulations(self):
+        original = initial_state()
+        first = MemoryStorage(original)
+        second = MemoryStorage(original)
+        SimulationPlayground(first).step()
+        self.assertEqual(second.load()["runtime"]["tick"], 0)
+        self.assertEqual(first.load()["runtime"]["tick"], 1)
 
     def test_demo(self):
         with tempfile.TemporaryDirectory() as folder:

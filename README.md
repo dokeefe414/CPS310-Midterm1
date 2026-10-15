@@ -2,9 +2,7 @@
 
 **Student:** Daniel O'Keefe  
 **Course:** CPS 310 — Fall 2026  
-**Instructor:** Fanchao  
-**Due:** October 14, 2026, 11:59 PM EST  
-**Submission:** Individual GitHub repository
+**Instructor:** Dr. Fanchao Meng
 
 ## Assignment and objective
 

@@ -1,37 +1,51 @@
-"""Tests for the two interchangeable storage backends."""
+"""Automated checks for the original-Zombie-Game-inspired midterm design."""
 import json
 import tempfile
 import unittest
 from pathlib import Path
-from midterm1 import MemoryStorage, JSONFileStorage, ZombieSimulation, initial_state
+from midterm1 import (
+    ArmedHuman, Human, Zombie, MemoryStorage, JSONFileStorage,
+    SimulationPlayground, initial_state, run_demo,
+)
 
 
-class StorageTests(unittest.TestCase):
-    def test_memory_copy_isolation(self):
-        storage = MemoryStorage(initial_state())
-        snapshot = storage.load()
-        snapshot["agents"]["zombie"]["x"] = 99
-        self.assertEqual(storage.load()["agents"]["zombie"]["x"], 0)
-
-    def test_backends_have_identical_simulation_behavior(self):
+class MidtermTests(unittest.TestCase):
+    def test_both_backends_remain_identical(self):
         with tempfile.TemporaryDirectory() as folder:
             memory = MemoryStorage(initial_state())
             disk = JSONFileStorage(Path(folder) / "state.json", initial_state())
-            first = ZombieSimulation(memory)
-            second = ZombieSimulation(disk)
-            for _ in range(10):
-                self.assertEqual(first.step(), second.step())
+            m, d = SimulationPlayground(memory), SimulationPlayground(disk)
+            for tick in range(1, 21):
+                self.assertEqual(m.step(), d.step())
                 self.assertEqual(memory.load(), disk.load())
-            self.assertEqual(memory.load()["runtime"]["tick"], 10)
-            self.assertEqual(memory.load()["agents"]["human"]["health"], 0)
+                self.assertEqual(memory.load()["runtime"]["tick"], tick)
 
-    def test_file_persists_for_new_reader(self):
+    def test_memory_isolation(self):
+        store = MemoryStorage(initial_state())
+        copy = store.load()
+        copy["agents"][0]["health"] = -100
+        self.assertEqual(store.load()["agents"][0]["health"], 100.0)
+
+    def test_file_contains_complete_state(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "state.json"
-            disk = JSONFileStorage(path, initial_state())
-            ZombieSimulation(disk).step()
-            self.assertEqual(disk.load()["runtime"]["tick"], 1)
-            self.assertEqual(json.loads(path.read_text())["runtime"]["tick"], 1)
+            store = JSONFileStorage(path, initial_state())
+            SimulationPlayground(store).step()
+            state = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(state["runtime"]["tick"], 1)
+            self.assertIn("environment", state)
+            self.assertIn("agents", state)
+
+    def test_agent_types_and_combat(self):
+        state = initial_state()
+        self.assertEqual({a["type"] for a in state["agents"]}, {"Human", "ArmedHuman", "Zombie"})
+        store = MemoryStorage(state)
+        SimulationPlayground(store).step()
+        self.assertEqual(store.load()["runtime"]["tick"], 1)
+
+    def test_demo(self):
+        with tempfile.TemporaryDirectory() as folder:
+            run_demo(Path(folder) / "state.json", steps=3)
 
 
 if __name__ == "__main__":

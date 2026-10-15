@@ -1,0 +1,20 @@
+{
+  "agents": {
+    "zombie": {
+      "id": "z1",
+      "x": 5
+    },
+    "human": {
+      "id": "h1",
+      "x": 5,
+      "health": 0
+    }
+  },
+  "environment": {
+    "width": 10,
+    "terrain": "street"
+  },
+  "runtime": {
+    "tick": 8
+  }
+}

@@ -9,12 +9,15 @@ from midterm1 import (
 )
 
 
+# Each test isolates one requirement, so failures are easy to explain.
 class MidtermTests(unittest.TestCase):
     def test_both_backends_remain_identical(self):
         with tempfile.TemporaryDirectory() as folder:
             memory = MemoryStorage(initial_state())
             disk = JSONFileStorage(Path(folder) / "state.json", initial_state())
             m, d = SimulationPlayground(memory), SimulationPlayground(disk)
+            # Run the SAME game rules against two different storage backends.
+            # Equality across 20 ticks is evidence of storage independence.
             for tick in range(1, 21):
                 self.assertEqual(m.step(), d.step())
                 self.assertEqual(memory.load(), disk.load())
@@ -22,6 +25,7 @@ class MidtermTests(unittest.TestCase):
 
     def test_memory_isolation(self):
         store = MemoryStorage(initial_state())
+        # Changing a loaded copy must NOT silently change the stored snapshot.
         copy = store.load()
         copy["agents"][0]["health"] = -100
         self.assertEqual(store.load()["agents"][0]["health"], 100.0)
@@ -31,6 +35,7 @@ class MidtermTests(unittest.TestCase):
             path = Path(folder) / "state.json"
             store = JSONFileStorage(path, initial_state())
             SimulationPlayground(store).step()
+            # Read the real file to prove persistence happened on disk.
             state = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(state["runtime"]["tick"], 1)
             self.assertIn("environment", state)
@@ -55,6 +60,7 @@ class MidtermTests(unittest.TestCase):
         result = SimulationPlayground(MemoryStorage(state)).step()
         armed = next(a for a in result["agents"] if a["type"] == "ArmedHuman")
         zombie = next(a for a in result["agents"] if a["type"] == "Zombie")
+        # The shot starts a cooldown and damages the nearby zombie.
         self.assertEqual(armed["cooldown"], 6)
         self.assertLess(zombie["health"], 120.0)
 
@@ -67,6 +73,7 @@ class MidtermTests(unittest.TestCase):
              "speed": 2.1, "health": 120.0},
         ]
         result = SimulationPlayground(MemoryStorage(state)).step()
+        # One human dies and is replaced by one new zombie.
         self.assertEqual(len(result["agents"]), 2)
         self.assertTrue(all(a["type"] == "Zombie" for a in result["agents"]))
         self.assertEqual(result["runtime"]["next_id"], 4)
@@ -75,12 +82,14 @@ class MidtermTests(unittest.TestCase):
         original = initial_state()
         first = MemoryStorage(original)
         second = MemoryStorage(original)
+        # Advancing one game must leave the other game's state untouched.
         SimulationPlayground(first).step()
         self.assertEqual(second.load()["runtime"]["tick"], 0)
         self.assertEqual(first.load()["runtime"]["tick"], 1)
 
     def test_demo(self):
         with tempfile.TemporaryDirectory() as folder:
+            # Exercise the same printed comparison a professor sees in VS Code.
             run_demo(Path(folder) / "state.json", steps=3)
 
 
